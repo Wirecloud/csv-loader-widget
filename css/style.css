@@ -1,0 +1,8 @@
+h3, .margin {
+    margin: 5px 5px 5px 5px;
+}
+
+.float_left {
+    float: left;
+    margin: 5px 5px 5px 5px;
+}

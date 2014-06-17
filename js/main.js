@@ -2,17 +2,19 @@
 
   'use strict';
 
-  var layout, error;
+  var layout, error, parse_result, file_name_info;
 
   var STRING_TYPE = 'string';
   var NUMBER_TYPE = 'number';
   var DATE_TYPE = 'date';
+  var NO_FILE_SELECT = '<em>No file selected</em>';
 
   ///////////
   // ERROR //
   ///////////
 
   var showError = function(errorMsg) {
+    parse_result.innerHTML = '';
     error.innerHTML = errorMsg;
     $(error).removeClass('hidden');
   }
@@ -188,6 +190,18 @@
       data: data
     };
 
+    // Update parse result
+    var html = '<p><strong>' + data.length + '</strong> records were found. List of fields found:</p>';
+    html += '<ul>'
+
+    for (var i = 0; i < structure.length; i++) {
+      html += '<li><strong>' + structure[i].id + '</strong> (<em>' + structure[i].type + '</em>)</li>';
+    }
+
+    html += '</ul>';
+    parse_result.innerHTML = html;
+
+
     MashupPlatform.wiring.pushEvent('resource', JSON.stringify(resource));
   }
 
@@ -202,19 +216,37 @@
 
     hideError();
 
-    if (file && file.type === 'text/csv') {
-      var reader = new FileReader();
-      reader.onload = function(e) {
-        var content = e.target.result;
-        parseCSV(content);
+    if (file) {
+      
+      // Show file name in the element
+      file_name_info.innerHTML = file.name;
+
+      if (file.type === 'text/csv') {
+        var reader = new FileReader();
+        
+        reader.onload = function(e) {
+          var content = e.target.result;
+          parseCSV(content);
+          layout.getCenterContainer().enable();
+        }
+
+        reader.onerror = function(e) {
+          layout.getCenterContainer().enable();
+          showError('Error reading the file ' + e);
+        }
+
+        // Disable the container. The container is enabled again when the
+        // callbacks are called
+        layout.getCenterContainer().disable();
+        reader.readAsText(file);
+      } else {
+        showError('Invalid format: "text/csv" was expected, but "' + file.type + '" was found');
       }
 
-      reader.readAsText(file);
-    } else if (file) {
-      showError('Invalid format. text/csv was expected, but ' + file.type + ' was found');
     } else {
+      file_name_info.innerHTML = NO_FILE_SELECT;
       showError('Please, select a valid file');
-    }
+    } 
   }
 
 
@@ -227,21 +259,39 @@
     layout = new StyledElements.BorderLayout();
     layout.insertInto(document.body);
 
-    //Create the resource title
-    var info_msg = document.createElement('p');
+    // CSV Upload file Message
+    var info_msg = document.createElement('h3');
     info_msg.innerHTML = 'Upload the CSV File';
     layout.getCenterContainer().appendChild(info_msg);
 
-    //Create the resource select
+    // Input (it isn't included in the layout)
     var input_file = document.createElement('input');
     input_file.setAttribute('type', 'file');
     input_file.addEventListener('change', readFile);
-    layout.getCenterContainer().appendChild(input_file);
 
-    //Create the error div
+    // Input simulation
+    file_name_info = document.createElement('p');
+    file_name_info.setAttribute('class', 'float_left')
+    file_name_info.innerHTML = NO_FILE_SELECT;
+    file_name_info.addEventListener('click', input_file.click.bind(input_file));
+
+    layout.getCenterContainer().appendChild(file_name_info);
+    var browse_button = new StyledElements.StyledButton({ text: 'Browse' });
+    browse_button.addEventListener('click', input_file.click.bind(input_file));
+    layout.getCenterContainer().appendChild(browse_button);
+
+    // Parse result message
+    var parse_result_title = document.createElement('h3');
+    parse_result_title.innerHTML = 'Parse Result';
+    layout.getCenterContainer().appendChild(parse_result_title);
+
+    //Parse results Div
+    parse_result = document.createElement('p');
+    layout.getCenterContainer().appendChild(parse_result);
+
+    // Error Div
     error = document.createElement('div');
-    error.setAttribute('class', 'alert alert-danger');
-    hideError();
+    error.setAttribute('class', 'alert alert-danger hidden margin');
     layout.getCenterContainer().appendChild(error);
 
     //Repaint is needed
