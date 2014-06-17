@@ -31,15 +31,11 @@
   }
 
   var isDate = function(value) {
-    var date = new Date(value);
-    return !isNaN(date.getDate());
+    return Date.parse(value) !== null;
   }
 
   var getType = function(value) {
-    if (value.indexOf('%') >= 0) {
-      // Chrome stupid bug. new Date('1%') returns a date
-      return STRING_TYPE
-    } else if (isNumber(value)) {
+    if (isNumber(value)) {
       return NUMBER_TYPE;
     } else if (isDate(value)) {
       return DATE_TYPE;
@@ -154,9 +150,13 @@
         // All the elements of that column should have the same time.
         // Otherwise, the type will be considered as string.
         for (var j = 1; j < data.length && sameType; j++) {
-          var type = getType(data[j][fieldName]);
-          if (type !== firstType) {
-            sameType = false;
+          // Empty fields should not be checked, since they are always
+          // considered as numbers.
+          if (data[j][fieldName] != '') {
+            var type = getType(data[j][fieldName]);
+            if (type !== firstType) {
+              sameType = false;
+            }
           }
         }
 
@@ -164,6 +164,21 @@
         // will be overwritten with this new type
         if (sameType) {
           structure[i].type = firstType;
+        }
+      }
+    }
+
+    // Date fields should be parsed
+    for (var i = 0; i < structure.length; i++) {
+      var field = structure[i];
+
+      if (field.type === DATE_TYPE) {
+        for (var j = 0; j < data.length; j++) {
+          // new Date is from JS core
+          // Date is from the Date libary imported
+          if (data[j][field.id] !== '') {
+            data[j][field.id] = Date.parse(data[j][field.id]).toISOString();
+          }
         }
       }
     }

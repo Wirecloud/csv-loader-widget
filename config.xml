@@ -42,6 +42,6 @@
     </Platform.Link>
 
     <!-- Platform.Rendering element. It specifies the default width and height of the widget -->
-    <Platform.Rendering width="5" height="27"/>
+    <Platform.Rendering width="5" height="16"/>
 
 </Template>
