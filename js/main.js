@@ -31,7 +31,8 @@
   }
 
   var isDate = function(value) {
-    return !isNaN(Date.parse(value));
+    var date = new Date(value);
+    return !isNaN(date.getDate());
   }
 
   var getType = function(value) {
@@ -52,39 +53,92 @@
   // PARSE CSV //
   ///////////////
 
+  /*
+   * Extracted from:
+   * http://www.bennadel.com/blog/1504-ask-ben-parsing-csv-strings-with-javascript-exec-regular-expression-command.htm
+   */
+  function CSVToArray(strData, strDelimiter){
+    // Check to see if the delimiter is defined. If not, then default to comma.
+    strDelimiter = strDelimiter || ",";
+
+    // Create a regular expression to parse the CSV values.
+    var objPattern = new RegExp(
+      (
+        // Delimiters.
+        "(\\" + strDelimiter + "|\\r?\\n|\\r|^)" +
+
+        // Quoted fields.
+        "(?:\"([^\"]*(?:\"\"[^\"]*)*)\"|" +
+
+        // Standard fields.
+        "([^\"\\" + strDelimiter + "\\r\\n]*))"
+      ),
+      "gi"
+    );
+
+
+    // Create an array to hold our data. Give the array a default empty first row.
+    var arrData = [[]];
+
+    // Create an array to hold our individual pattern matching groups.
+    var arrMatches = null;
+
+    // Keep looping over the regular expression matches until we can no longer find a match.
+    while (arrMatches = objPattern.exec(strData)){
+
+      // Get the delimiter that was found.
+      var strMatchedDelimiter = arrMatches[1];
+
+      // Check to see if the given delimiter has a length (is not the start of string) and if it matches
+      // field delimiter. If id does not, then we know that this delimiter is a row delimiter.
+      if (strMatchedDelimiter.length && (strMatchedDelimiter != strDelimiter)){
+        // Since we have reached a new row of data, add an empty row to our data array.
+        arrData.push([]);
+      }
+
+      // Now that we have our delimiter out of the way, et's check to see which kind of value we
+      // captured (quoted or unquoted).
+      if (arrMatches[2]){
+        // We found a quoted value. When we capture this value, unescape any double quotes.
+        var strMatchedValue = arrMatches[2].replace(new RegExp("\"\"", "g"),"\"");
+      } else {
+        // We found a non-quoted value.
+        var strMatchedValue = arrMatches[3];
+      }
+
+      // Now that we have our value string, let's add it to the data array.
+      arrData[arrData.length - 1].push(strMatchedValue);
+    }
+
+    // Return the parsed data.
+    return arrData;
+  }
+
   var parseCSV = function(csvText) {
 
-    var lines = csvText.split('\n');    // Get the lines of CSV
+    var csvAsArray = CSVToArray(csvText);
+    var headers = csvAsArray[0];
     var structure = [], data = [];
-    
-    // Get the headers
-    var headers = lines[0].split(',');
+
+    // Headers
     for (var i = 0; i < headers.length; i++) {
       structure.push({id: headers[i], type: STRING_TYPE});
     }
 
-    // Get data
-    var validCSV = true;
-    for (var i = 1; i < lines.length && validCSV; i++) {
-
-      //Avoid empty lines
-      if (lines[i] !== '') { 
-        var lineParsed = lines[i].split(',');
-
-        // The header line should contain the same number of elements
-        // that the rest of file lines. Comma when the last element is 
-        // empty can be obviated. 
-        if (lineParsed.length == headers.length || lineParsed.length + 1 == headers.length) {
-          var row = {}
-          for (var j = 0; j < lineParsed.length; j++) {
-            row[headers[j]] = lineParsed[j];
-          }
-          data.push(row);
-        } else {
-          showError('Invalid CSV uploaded. Line ' + (i + 1) + '. Expected ' + headers.length + 
-              ' fields but ' + lineParsed.length + ' were found.');
-          validCSV = false;
+    // Data
+    for (var i = 1; i < csvAsArray.length; i++) {
+      var aux = csvAsArray[i];
+      var emptyLine = (aux.length == 1) && (aux[0] == '');
+      
+      // Avoid including empty lines
+      if (!emptyLine) {
+        var record = {};
+        for (var j = 0; j < headers.length; j++) {
+          record[headers[j]] = aux[j] || '';
         }
+
+        //Push the record in the data array
+        data.push(record);
       }
     }
 
@@ -112,18 +166,14 @@
           structure[i].type = firstType;
         }
       }
-
     }
 
-    // Information is only pushed when the CSV is valid
-    if (validCSV) {
-      var resource = {
-        structure: structure,
-        data: data
-      };
+    var resource = {
+      structure: structure,
+      data: data
+    };
 
-      MashupPlatform.wiring.pushEvent('resource', JSON.stringify(resource));  
-    }
+    MashupPlatform.wiring.pushEvent('resource', JSON.stringify(resource));
   }
 
 
@@ -133,21 +183,22 @@
 
   var readFile = function(evt) {
     
-    var fileName = evt.target.files[0];
+    var file = evt.target.files[0];
 
     hideError();
 
-    if (fileName) {
+    if (file && file.type === 'text/csv') {
       var reader = new FileReader();
       reader.onload = function(e) {
         var content = e.target.result;
         parseCSV(content);
       }
 
-      reader.readAsText(fileName);
-
+      reader.readAsText(file);
+    } else if (file) {
+      showError('Invalid format. text/csv was expected, but ' + file.type + ' was found');
     } else {
-      showError('Empty file');
+      showError('Please, select a valid file');
     }
   }
 
